@@ -350,8 +350,17 @@ sub inputsToArgs {
 }
 
 
+# Projects whose flake jobsets are evaluated in pure mode, from the
+# space/comma-separated `evaluator_pure_eval_projects` setting.
+sub pureEvalProject {
+    my ($projectName) = @_;
+    my %pure = map { $_ => 1 } grep { $_ ne "" }
+        split /[\s,]+/, ($config->{evaluator_pure_eval_projects} // "");
+    return exists $pure{$projectName};
+}
+
 sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $projectName) = @_;
 
     print STDERR "($jobsetName) Evaluating...\n";
 
@@ -373,6 +382,13 @@ sub evalJobs {
                 # providing any benefit from caching.
                 "--option", "eval-cache", "false",
                 "--expr", $nix_expr);
+        # `--expr` evaluates impurely, so the flake sees e.g.
+        # `builtins.currentSystem` (the evaluator host's system) where a
+        # `--flake` evaluation would not.  For listed projects, evaluate
+        # purely instead.  The flake ref is locked (it carries a narHash),
+        # which `builtins.getFlake` requires in pure mode.
+        push @cmd, ("--option", "pure-eval", "true")
+            if defined $projectName && pureEvalProject($projectName);
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
@@ -763,7 +779,7 @@ sub checkJobsetWrapped {
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my $evalStop;
-    my $jobsIter = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
+    my $jobsIter = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef, $project->name);
 
     if ($dryRun) {
         while (defined(my $job = $jobsIter->())) {
