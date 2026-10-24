@@ -19,4 +19,15 @@ subtest "Updating GC roots" => sub {
     }
 };
 
+subtest "Builds of a disabled project are not kept" => sub {
+    my ($build) = values %$builds;
+    my $jobset = $build->jobset;
+    $jobset->project->update({ enabled => 0 });
+
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(5, "hydra-update-gc-roots");
+    is($res, 0, "hydra-update-gc-roots should exit zero");
+    like($stderr, qr/skipping disabled jobset \Q${\$jobset->get_column('project')}:${\$jobset->name}\E/,
+        "a jobset of a disabled project is skipped even though it is not hidden");
+};
+
 done_testing;

@@ -133,9 +133,13 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
     foreach my $jobset ($project->jobsets->search({}, { order_by => ["name" ]})) {
         my $keepnr = $jobset->keepnr;
 
-        # If the jobset has been hidden and disabled for more than one
-        # week, then don't keep its builds anymore.
-        if ($jobset->enabled == 0 && ($project->hidden == 1 || $jobset->hidden == 1) && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600))) {
+        # Don't keep the builds of a disabled project (it is never
+        # evaluated again), nor of a jobset that has been disabled for more
+        # than one week.  Hidden-ness used to be required as well, but a
+        # retired project is usually just disabled: on ci.zw3rk.com the 61
+        # jobsets of a project disabled after its repository moved kept the
+        # roots of ~38k builds that the new project rebuilds anyway.
+        if ($project->enabled == 0 || ($jobset->enabled == 0 && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600)))) {
             print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
             next;
         }
