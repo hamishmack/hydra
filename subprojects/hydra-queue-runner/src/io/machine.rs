@@ -168,6 +168,8 @@ pub struct Machine {
     nix_version: String,
     stats: MachineStats,
     jobs: Vec<StorePath>,
+    /// Built, slot freed, waiting for the builder's upload (`CompleteBuild`).
+    freed_jobs: Vec<StorePath>,
 
     has_capacity: bool,
     has_dynamic_capacity: bool,
@@ -212,6 +214,7 @@ impl Machine {
 
             stats: MachineStats::from(&item.stats, time.as_second()),
             jobs,
+            freed_jobs: item.freed_job_paths(),
             has_capacity: item.has_capacity(free_fn),
             has_dynamic_capacity: item.has_dynamic_capacity(),
             has_static_capacity: item.has_static_capacity(),

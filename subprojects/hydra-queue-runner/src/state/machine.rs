@@ -1018,6 +1018,13 @@ impl Machine {
         }
     }
 
+    /// Paths of the jobs whose slot has been freed but whose `CompleteBuild`
+    /// has not arrived: built, waiting for the builder's upload.
+    #[must_use]
+    pub fn freed_job_paths(&self) -> Vec<StorePath> {
+        self.freed_jobs.read().values().map(|j| j.path.clone()).collect()
+    }
+
     /// Remove and return a job from the `freed_jobs` map by build UUID.
     ///
     /// Called by `succeed_step` / `fail_step` when `remove_job(drv)` returns
