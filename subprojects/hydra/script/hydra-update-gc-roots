@@ -222,13 +222,18 @@ foreach my $link (@roots) {
     # `%roots` is keyed; the full path is only for the messages below.
     my $path = "$storeDir/$link";
     if (!defined $roots{$link}) {
-        # Don't delete roots that are less than a day old, to prevent
+        # Don't delete roots that are less than six hours old, to prevent
         # a race where hydra-eval-jobs has added a root but
-        # hydra-evaluator hasn't added them to the database yet.
+        # hydra-evaluator hasn't added them to the database yet.  Six
+        # hours covers the longest evaluation (haskell.nix's take up to
+        # ~2.5h).  It was a day, but the queue runner roots every step
+        # output in this directory too, so on ci.zw3rk.com everything
+        # built in the last day stayed rooted: ~40k roots a day of GHCs
+        # and their dependencies, which filled the store (2026-10-29).
         my $st = lstat("$gcRootsDir/$link");
         if (!defined $st) {
             print STDERR "skipping link $link: $!\n";
-        } elsif ($st->ctime < $now - 24 * 60 * 60) {
+        } elsif ($st->ctime < $now - 6 * 60 * 60) {
             print STDERR "removing root $path\n";
             $rootsDeleted++;
             unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
