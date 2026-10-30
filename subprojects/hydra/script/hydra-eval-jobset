@@ -912,8 +912,26 @@ sub checkJobsetWrapped {
     my $jobsetChanged = 0;
     my %buildMap;
 
+    # Say how far the evaluation has got every ten seconds, for monitoring:
+    # nothing reaches the database until the transaction below commits.
+    my $progressName = $project->name . ":" . $jobset->name;
+    my $lastProgress = $evalStart;
+    my $progressDue = sub {
+        my $t = clock_gettime(CLOCK_MONOTONIC);
+        return 0 if $t - $lastProgress < 10;
+        $lastProgress = $t;
+        return 1;
+    };
+
     my @jobs;
-    push @jobs, $_ while defined($_ = $jobsIter->());
+    my $nrFailedJobs = 0;
+    while (defined(my $job = $jobsIter->())) {
+        push @jobs, $job;
+        $nrFailedJobs++ if defined $job->{error};
+        print STDERR "($progressName) evaluated ", scalar(@jobs), " jobs ($nrFailedJobs failed)\n"
+            if $progressDue->();
+    }
+    print STDERR "($progressName) evaluated ", scalar(@jobs), " jobs ($nrFailedJobs failed), adding builds\n";
 
     my $currentEval;
     my $evalTxn = sub {
@@ -935,7 +953,12 @@ sub checkJobsetWrapped {
 
         my @jobsWithConstituents;
 
+        my $nrChecked = 0;
         foreach my $job (@jobs) {
+            print STDERR "($progressName) adding builds: checked $nrChecked of ", scalar(@jobs), " jobs\n"
+                if $progressDue->();
+            $nrChecked++;
+
             if ($jobsetsJobset) {
                 die "The .jobsets jobset must only have a single job named 'jobsets'"
                     unless $job->{attr} eq "jobsets";
